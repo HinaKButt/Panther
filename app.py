@@ -1,111 +1,87 @@
+import os
+import tempfile
+
 import streamlit as st
+from langchain_community.document_lloaders import PyPDFLoader
+from langchain_community.vectorstores import FAISS
+from lanchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from lanchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_text_splitters import RecuriveCharacterTextSplitter
 
-# from langchain_openai import OpenAI
-
-from langchain_openai import ChatOpenAI
-
-# from langchain_core import PromptTemplate, LLMChain
-
-from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
-    AIMessage,
-)
-
-from dotenv import load_dotenv
-
-load_dotenv()
 
 st.set_page_config(
-    page_title="Chatbot",
-    page_icon="🤖"
-)
+    page_title="PDF RAG Agent",
+    page_icon= "📃",
+    layout="wide"
+    )
 
-st.subheader(
-    "You can ask me anything about the company and I will try to answer your questions."
-)
+st.title("PDF RAG Agent 📃")
 
-chat = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0.5,
-    max_tokens=150
+st.caption(
+    "Upload a PDF file and ask questions about its content"
 )
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 with st.sidebar:
 
-    system_message = st.text_input(
-        label="System role",
-        value="You are a helpful assistant."
+    st.header("settings")
+
+    api_key = st.text_input(
+        "OpenAI API Key",
+        type="password",
+        Value=os.environ.get("OPENAI_API_KEY", "")
     )
 
-    user_prompt = st.text_input(
-        label="User prompt",
-        value="You are a helpful assistant."
+    model_name = st.selectbox(
+        "Model",
+        ["gpt-4o-mini", "gpt-4o"]
+        index=0
     )
 
-    if system_message:
+    chunk_size = st.slider(
+        "Chunk Size",
+        min_values=100,
+        max_value=1000,
+        value=500,
+        step=50
+    )
 
-        if not any(
-            isinstance(x, SystemMessage)
-            for x in st.session_state.messages
-        ):
-            st.session_state.messages.append(
-                SystemMessage(content=system_message)
-            )
+    chunk_overlap = st.slider(
+        "Chunk Overlap",
+        min_value=0,
+        max_value=chunk_size,
+        value=50,
+        step=10
+    )
 
-        if user_prompt:
+    top_k = st.slider(
+        "Retrieved Chunks (k)",
+        min_value=0,
+        max_value=10,
+        value=5,
+        step=1
+    )
 
-            st.session_state.messages.append(
-                HumanMessage(content=user_prompt)
-            )
+    if not api_key:
+        st.info("please enter your OpenAI API kay in the sidebar to continue.")
+        st.stop()
 
-            with st.spinner("Thinking..."):
+        os.environ["OPENAI_API_KEY"] = api_key
 
-                response = chat.invoke(
-                    st.session_state.messages
-                )
-
-                st.session_state.messages.append(response)
-
-
-# Display messages
-
-if len(st.session_state.messages) > 1:
-
-    if not isinstance(
-        st.session_state.messages[0],
-        SystemMessage
-    ):
-        st.session_state.messages.insert(
-            0,
-            SystemMessage(content=system_message)
+        uploaded_pdf = st.file_uploader(
+            "Upload a PDF file",
+            type="pdf"
         )
 
-    for x in st.session_state.messages[1:]:
+        def build_vectorstore(pdf_fle: bytes, chunk_size: int, chunk_overlap: int) -> FAISS:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=" .pdf") as temp_pdf:
+                temp_pdf .write(pdf_file.read())
+                temp_pdf_path = temp_pdf.Name
 
-        if isinstance(x, HumanMessage):
+                
 
-            with st.chat_message("user"):
-                st.write(x.content)
 
-        elif isinstance(x, AIMessage):
 
-            with st.chat_message("assistant"):
-            with st.spinner("Thinking…"):
-                answer = chain.invoke(question)
-                st.markdown(answer)
 
-                # Show the retrieved chunks for transparency
-                with st.expander("🔍 Sources (retrieved chunks)"):
-                    for doc in retriever.invoke(question):
-                        page = doc.metadata.get("page", "?")
-                        st.markdown(f"**Page {page + 1 if isinstance(page, int) else page}**")
-                        st.text(doc.page_content[:500])
-                        st.divider()
-
-        st.session_state.messages.append({"role": "assistant", "content": answer})
-else:
-    st.info("👆 Upload a PDF to get started.")
+                
